@@ -1,0 +1,396 @@
+你要的是 “AI思维导图 → 自动演说 → 录屏 → 生成视频” 的完整版源码。
+我给你一套 可以直接在你现在用的 KSWEB 上跑的版本（PHP + HTML + JS）。
+这是一套 精简但完整可运行的版本，结构清晰，你以后可以继续扩展 AI 接口。
+一、项目目录结构
+复制代码
+
+ai-mindmap-video/
+
+index.php
+parser.php
+
+/js
+   mindmap.js
+   speech.js
+   recorder.js
+
+/css
+   style.css
+放到：
+复制代码
+
+/htdocs/ai-mindmap-video/
+浏览器打开：
+复制代码
+
+http://localhost/ai-mindmap-video
+二、index.php（主程序）
+Php
+复制代码
+<?php
+require "parser.php";
+
+$markdown = "
+# AI赚钱3步法
+
+## 选赛道
+AI写作
+AI视频
+AI设计
+
+## 做能力
+工具
+模板
+流程
+
+## 去变现
+接单
+私域
+产品
+";
+
+$data = parseMarkdown($markdown);
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AI思维导图视频生成器</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+</head>
+
+<body>
+
+<h2>AI思维导图视频生成器</h2>
+
+<div id="mindmap"></div>
+
+<div id="speech">
+
+<h3 id="nodeTitle"></h3>
+
+<p id="nodeText"></p>
+
+<button onclick="prevNode()">上一页</button>
+<button onclick="nextNode()">下一页</button>
+<button onclick="autoPlay()">自动播放</button>
+<button onclick="readText()">朗读</button>
+
+</div>
+
+<div>
+
+<button onclick="startRecord()">开始录屏</button>
+<button onclick="stopRecord()">停止录屏</button>
+
+</div>
+
+<script>
+
+const mindData = <?php echo json_encode($data); ?>
+
+</script>
+
+<script src="js/mindmap.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/recorder.js"></script>
+
+</body>
+</html>
+三、parser.php（Markdown解析）
+Php
+复制代码
+<?php
+
+function parseMarkdown($text){
+
+$lines = explode("\n",$text);
+
+$root = [
+"name"=>"root",
+"children"=>[]
+];
+
+$current = null;
+
+foreach($lines as $line){
+
+$line = trim($line);
+
+if($line=="") continue;
+
+if(strpos($line,"# ")===0){
+
+$root["name"]=substr($line,2);
+
+}
+
+elseif(strpos($line,"## ")===0){
+
+$current = [
+"name"=>substr($line,3),
+"children"=>[]
+];
+
+$root["children"][]=&$current;
+
+}
+
+else{
+
+if($current){
+
+$current["children"][]=[
+"name"=>$line
+];
+
+}
+
+}
+
+}
+
+return $root;
+
+}
+四、mindmap.js（思维导图）
+Javascript
+复制代码
+const chart = echarts.init(document.getElementById('mindmap'));
+
+function convert(node){
+
+return {
+
+name: node.name,
+
+children: node.children ? node.children.map(convert) : []
+
+}
+
+}
+
+const tree = convert(mindData);
+
+chart.setOption({
+
+series:[{
+
+type:"tree",
+
+data:[tree],
+
+top:"5%",
+
+left:"20%",
+
+bottom:"5%",
+
+right:"20%",
+
+symbolSize:12,
+
+label:{
+color:"#fff"
+},
+
+expandAndCollapse:true
+
+}]
+
+});
+五、speech.js（自动演说）
+Javascript
+复制代码
+let nodes = [];
+let index = 0;
+
+function flatten(node){
+
+nodes.push(node.name);
+
+if(node.children){
+
+node.children.forEach(flatten)
+
+}
+
+}
+
+flatten(mindData);
+
+function showNode(){
+
+document.getElementById("nodeTitle").innerText = nodes[index];
+
+document.getElementById("nodeText").innerText = nodes[index];
+
+}
+
+function nextNode(){
+
+if(index < nodes.length-1){
+
+index++;
+
+showNode();
+
+}
+
+}
+
+function prevNode(){
+
+if(index>0){
+
+index--;
+
+showNode();
+
+}
+
+}
+
+let timer;
+
+function autoPlay(){
+
+timer = setInterval(()=>{
+
+nextNode()
+
+},3000)
+
+}
+
+function readText(){
+
+let text = nodes[index];
+
+let speech = new SpeechSynthesisUtterance(text);
+
+speech.lang="zh-CN";
+
+speechSynthesis.speak(speech);
+
+}
+
+showNode();
+六、recorder.js（录屏）
+Javascript
+复制代码
+let recorder;
+let chunks=[];
+
+async function startRecord(){
+
+const stream = await navigator.mediaDevices.getDisplayMedia({
+video:true,
+audio:true
+});
+
+recorder = new MediaRecorder(stream);
+
+recorder.ondataavailable=e=>chunks.push(e.data);
+
+recorder.onstop=e=>{
+
+const blob = new Blob(chunks,{type:"video/webm"});
+
+const url = URL.createObjectURL(blob);
+
+let a=document.createElement("a");
+
+a.href=url;
+
+a.download="mindmap-video.webm";
+
+a.click();
+
+}
+
+recorder.start();
+
+}
+
+function stopRecord(){
+
+recorder.stop();
+
+}
+七、style.css
+Css
+复制代码
+body{
+background:#111;
+color:#fff;
+font-family:Arial;
+text-align:center;
+}
+
+#mindmap{
+width:100%;
+height:500px;
+}
+
+#speech{
+margin-top:20px;
+}
+八、运行效果
+流程：
+复制代码
+
+Markdown
+ ↓
+PHP解析
+ ↓
+Echarts思维导图
+ ↓
+逐节点演说
+ ↓
+浏览器朗读
+ ↓
+录屏
+ ↓
+生成视频
+输出：
+复制代码
+
+知识视频
+适合发：
+抖音
+小红书
+B站
+YouTube
+九、如果继续升级（推荐）
+再加 3 个模块就会变成 真正 AI内容工厂：
+1 AI自动写脚本
+接入
+OpenAI API
+2 AI自动配音
+TTS
+3 自动生成字幕
+十、终极版本
+如果你需要，我可以给你 更完整的一套（约5000行），包括：
+AI自动生成选题
+AI生成Markdown
+自动思维导图动画
+AI配音
+自动字幕
+自动导出 MP4
+短视频模板
+就是一个：
+AI短视频自动生产线。
+如果你要，我可以下一条直接发：
+🔥 GitHub级别完整版项目结构 + 完整源码（比这个强10倍）。
+
+
+
+
+
+  
